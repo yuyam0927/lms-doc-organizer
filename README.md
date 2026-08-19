@@ -6,18 +6,43 @@ LM Studio の Skill 機能から呼び出し、ローカルLLMにドキュメン
 ## 使い方(uvx / インストール不要)
 
 ```bash
-# GitHub リポジトリから直接実行
-uvx --from git+https://github.com/yuyam0927/lms-document-to-md-parser lms-doc2md path/to/file.docx -o out/
+# GitHub リポジトリから直接実行(1ファイル変換)
+uvx --from git+https://github.com/yuyam0927/lms-document-to-md-parser lms-doc2md convert path/to/file.docx -o out/
 
 # ディレクトリを一括変換
-uvx --from git+https://github.com/yuyam0927/lms-document-to-md-parser lms-doc2md path/to/dir -o out/ --recursive
+uvx --from git+https://github.com/yuyam0927/lms-document-to-md-parser lms-doc2md convert path/to/dir -o out/ --recursive
 ```
+
+### ファイルの命名・整理(organize)
+
+`title`(・任意で `date`)を指定した JSON マニフェストをもとに、ファイルを
+`YYYY-MM_タイトル` 形式にリネームして `<base-dir>/YYYY-MM/` フォルダへ移動します。
+`date` を省略した場合はファイルの更新日時が使われます。
+
+```bash
+# manifest.json:
+# [{"source": "path/to/report.docx", "title": "第3四半期売上報告", "date": "2026-08-19"}]
+
+# ドライラン(プレビューのみ、何も変更されない)
+uvx --from git+https://github.com/yuyam0927/lms-document-to-md-parser lms-doc2md organize manifest.json --base-dir path/to/dir
+
+# 実行(実際に移動・リネームし、<base-dir>/report.md にレポートを出力)
+uvx --from git+https://github.com/yuyam0927/lms-document-to-md-parser lms-doc2md organize manifest.json --base-dir path/to/dir --apply
+```
+
+## LM Studio Skill として使う
+
+[`skills/organize-documents/`](skills/organize-documents/) を
+`~/.lmstudio/skills/organize-documents/` にコピーすると、LM Studio 上で
+「`<フォルダパス>` を整理して」と指示するだけで、`convert` → タイトル・日付判定 →
+プレビュー確認 → `organize --apply` → レポート出力、までを自動実行できます。
+手順の詳細は [SKILL.md](skills/organize-documents/SKILL.md) を参照してください。
 
 ## ローカル開発
 
 ```bash
 uv sync
-uv run lms-doc2md sample.docx -o out/
+uv run lms-doc2md convert sample.docx -o out/
 ```
 
 ## 対応形式
