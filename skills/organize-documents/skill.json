@@ -1,0 +1,4 @@
+{
+  "name": "Organize Documents",
+  "description": "Renames docx/pdf/xlsx/txt/md files in a folder based on their content and sorts them into YYYY-MM folders"
+}
