@@ -1,5 +1,8 @@
 # lms-document-to-md-parser
 
+> このプロジェクトは [Claude](https://claude.com/claude-code)(Anthropic)と
+> [Codex](https://openai.com/codex/)(OpenAI)によって作成されています。
+
 `docx` / `pdf` / `xlsx` / `txt` / `md` ファイルを Markdown に変換する CLI ツール。
 LM Studio の Skill 機能から呼び出し、ローカルLLMにドキュメントの内容を読ませるための前処理として利用する想定。
 
