@@ -1,0 +1,23 @@
+[project]
+name = "lms-document-to-md-parser"
+version = "0.1.0"
+description = "Convert docx, pdf, xlsx, txt, and md files into Markdown for LLM ingestion (LM Studio Skill backend)."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = [
+    "python-docx>=1.1.0",
+    "pdfplumber>=0.11.0",
+    "openpyxl>=3.1.0",
+    "markdownify>=0.13.0",
+]
+
+[project.scripts]
+lms-doc2md = "lms_document_to_md_parser.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/lms_document_to_md_parser"]
