@@ -1,47 +1,64 @@
-# ファイル整理スキル
+# Organize Documents Skill
 
-指定されたフォルダの中にある docx / pdf / xlsx / txt / md ファイルを、
-内容から短いタイトルと日付を判断してリネームし、`YYYY-MM` フォルダに移動するスキルです。
+Renames docx / pdf / xlsx / txt / md files in a given folder based on their content
+(a short title and a date), and moves them into `YYYY-MM` subfolders.
 
-必ずこの手順の順番どおりに実行してください。手順を省略したり、まとめて実行したりしないでください。
-判断が必要なのは「タイトルを考える」「本文中の日付を探す」の2箇所だけです。それ以外は書かれたコマンドをそのまま実行してください。
+Note: the files you process will contain Japanese text. This is expected — read
+titles and dates in Japanese, but write them into the manifest as plain strings.
 
-## 手順
+Follow these steps in exact order. Do not skip steps or combine them.
+The only two things you need to judge are: "what is a short title for this document"
+and "does the text contain an explicit date". Everything else is a fixed command —
+run it exactly as written.
 
-### 0. 対象フォルダの確認
+## Steps
 
-ユーザーの指示から対象フォルダのパスを読み取ってください。
-パスが明確でない場合は、実行せずにユーザーに対象フォルダを確認してください(絶対パスで指定してもらう)。
+### 0. Confirm the target folder
 
-以下、対象フォルダを `<TARGET>` と表記します。
+Read the target folder path from the user's request.
+If the path is not clear, STOP and ask the user for the folder (require an absolute path).
+Do not guess a default folder.
 
-### 1. Markdown への一括変換
+Below, the target folder is written as `<TARGET>`.
 
-`run_command` で以下を実行してください(サブフォルダまで処理する場合のみ `--recursive` を追加。指示がなければ付けない):
+### 1. Convert all files to Markdown
+
+Run with `run_command` (add `--recursive` only if the user asked to include subfolders;
+otherwise omit it):
 
 ```
 uvx --from git+https://github.com/yuyam0927/lms-document-to-md-parser lms-doc2md convert "<TARGET>" -o "<TARGET>\.lms-doc2md-tmp"
 ```
 
-- `OK` と表示されたファイルは変換に成功しています。
-- `SKIP` と表示されたファイル(主にスキャン画像PDF)は対象外とし、後述の最終報告でユーザーに伝えてください。処理を止めずに次に進んでください。
-- `ERROR` と表示されたファイルも同様に対象外として扱い、最終報告で伝えてください。
+- Lines starting with `OK` converted successfully.
+- Lines starting with `SKIP` (usually scanned image PDFs with no extractable text) are
+  excluded from this run. Do not stop — continue to the next step, and mention these
+  files in the final report.
+- Lines starting with `ERROR` are also excluded. Continue, and mention them in the
+  final report.
 
-### 2. 各ファイルの内容確認とタイトル・日付の決定
+### 2. Read each file and decide a title and a date
 
-`<TARGET>\.lms-doc2md-tmp` フォルダの中にある `*.md` ファイルを、1つずつ `read_file` で読んでください(内容が長い場合は先頭 3000 文字程度で構いません)。
+For every `*.md` file inside `<TARGET>\.lms-doc2md-tmp`, read it one at a time with
+`read_file` (the first ~3000 characters is enough if the file is long).
 
-各ファイルについて、以下の2つだけを判断してください。
+For each file, decide exactly two things:
 
-- **title**: 文書の内容を表す短い日本語のタイトル(20文字程度まで)。ファイル名や見出し・冒頭の文からそのまま判断してよい。`/` `\` `:` `*` `?` `"` `<` `>` `|` などの記号は使わないこと。
-- **date**: 本文中に明確な日付の記載がある場合のみ `YYYY-MM-DD` 形式で抽出する(例: 「2026年8月19日」→ `2026-08-19`)。明確な日付が見つからない場合は **date を書かない(省略する)**。分からないのに推測で日付を作らないこと。
+- **title**: a short title in Japanese (about 20 characters or less) describing the
+  document, based on the filename, headings, or the opening sentence. Do not use the
+  characters `/` `\` `:` `*` `?` `"` `<` `>` `|`.
+- **date**: only if the document text explicitly states a date, extract it in
+  `YYYY-MM-DD` format (example: "2026年8月19日" → `2026-08-19`). If no explicit date is
+  found, **omit the `date` field entirely**. Never guess a date.
 
-### 3. マニフェストの作成
+### 3. Write the manifest
 
-手順2で決めた内容を、以下の形式の JSON 配列として `write_file` で
-`<TARGET>\.lms-doc2md-tmp\manifest.json` に書き込んでください。
+Write the decisions from step 2 as a JSON array using `write_file`, saved to
+`<TARGET>\.lms-doc2md-tmp\manifest.json`.
 
-`source` には **変換前の元ファイルのパス**(`.md` ではなく元の docx/pdf/xlsx/txt/md ファイル)を指定します。手順1で `SKIP` / `ERROR` になったファイルは含めないでください。
+`source` must be the path to the **original file** (the docx/pdf/xlsx/txt/md file,
+not the `.md` conversion output). Do not include files that were `SKIP` or `ERROR`
+in step 1.
 
 ```json
 [
@@ -50,39 +67,40 @@ uvx --from git+https://github.com/yuyam0927/lms-document-to-md-parser lms-doc2md
 ]
 ```
 
-### 4. プレビュー(ドライラン)の実行
+### 4. Run a dry-run preview
 
-`run_command` で以下を実行してください(`--apply` は付けない):
+Run with `run_command` (do NOT add `--apply`):
 
 ```
 uvx --from git+https://github.com/yuyam0927/lms-document-to-md-parser lms-doc2md organize "<TARGET>\.lms-doc2md-tmp\manifest.json" --base-dir "<TARGET>"
 ```
 
-出力された Markdown 表をそのままユーザーに提示し、「この内容で移動・リネームを実行してよろしいですか？」と確認してください。
-**ユーザーが明確に承認するまで、次の手順に進んではいけません。**
+Show the resulting Markdown table to the user exactly as printed, and ask:
+"Should I go ahead and rename/move these files?"
+**Do not proceed to the next step until the user clearly approves.**
 
-### 5. 実行
+### 5. Apply
 
-ユーザーが承認したら、`run_command` で以下を実行してください(`--apply` を追加):
+Once the user approves, run with `run_command` (add `--apply`):
 
 ```
 uvx --from git+https://github.com/yuyam0927/lms-document-to-md-parser lms-doc2md organize "<TARGET>\.lms-doc2md-tmp\manifest.json" --base-dir "<TARGET>" --apply
 ```
 
-これにより `<TARGET>\report.md` にレポートが作成され、ファイルの移動・リネームが実行されます。
+This writes a report to `<TARGET>\report.md` and actually renames/moves the files.
 
-ユーザーが承認しなかった場合は、ここで終了してください(手順6は実行しない)。
+If the user does not approve, stop here — do not run step 6.
 
-### 6. 後片付けと完了報告
+### 6. Clean up and report
 
-`run_command` で一時フォルダを削除してください:
+Remove the temporary folder with `run_command`:
 
 ```
 rmdir /s /q "<TARGET>\.lms-doc2md-tmp"
 ```
 
-最後に、ユーザーへ以下を報告してください:
+Finally, report the following to the user:
 
-- 移動・リネームしたファイル数
-- 対象外にしたファイル(SKIP / ERROR)とその理由
-- レポートの場所(`<TARGET>\report.md`)
+- Number of files renamed/moved
+- Any files excluded (SKIP / ERROR) and why
+- The report location (`<TARGET>\report.md`)

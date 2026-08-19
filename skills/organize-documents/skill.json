@@ -1,4 +1,4 @@
 {
-  "name": "ファイル整理",
-  "description": "指定フォルダ内のdocx/pdf/xlsx/txt/mdファイルを内容から命名し、YYYY-MM フォルダに整理します"
+  "name": "Organize Documents",
+  "description": "Renames docx/pdf/xlsx/txt/md files in a folder based on their content and sorts them into YYYY-MM folders"
 }
