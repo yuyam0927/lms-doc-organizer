@@ -1,19 +1,20 @@
-# lms-document-to-md-parser
+# lms-doc-organizer
 
 > このプロジェクトは [Claude](https://claude.com/claude-code)(Anthropic)と
 > [Codex](https://openai.com/codex/)(OpenAI)によって作成されています。
 
 `docx` / `pdf` / `xlsx` / `txt` / `md` ファイルを Markdown に変換する CLI ツール。
-LM Studio の Skill 機能から呼び出し、ローカルLLMにドキュメントの内容を読ませるための前処理として利用する想定。
+変換したMarkdownをローカルLLM(LM Studio)にタイトル判定だけさせ、ファイルの整理・リネームまで行う
+`auto-organize` コマンドも提供しています。
 
 ## 使い方(uvx / インストール不要)
 
 ```bash
 # GitHub リポジトリから直接実行(1ファイル変換)
-uvx --from git+https://github.com/yuyam0927/lms-document-to-md-parser lms-doc2md convert path/to/file.docx -o out/
+uvx --from git+https://github.com/yuyam0927/lms-doc-organizer lms-doc2md convert path/to/file.docx -o out/
 
 # ディレクトリを一括変換
-uvx --from git+https://github.com/yuyam0927/lms-document-to-md-parser lms-doc2md convert path/to/dir -o out/ --recursive
+uvx --from git+https://github.com/yuyam0927/lms-doc-organizer lms-doc2md convert path/to/dir -o out/ --recursive
 ```
 
 ### ファイルの命名・整理(organize)
@@ -28,30 +29,34 @@ uvx --from git+https://github.com/yuyam0927/lms-document-to-md-parser lms-doc2md
 # [{"source": "path/to/report.docx", "title": "第3四半期売上報告", "date": "2026-08-19"}]
 
 # ドライラン(プレビューのみ、何も変更されない)
-uvx --from git+https://github.com/yuyam0927/lms-document-to-md-parser lms-doc2md organize manifest.json --base-dir path/to/dir
+uvx --from git+https://github.com/yuyam0927/lms-doc-organizer lms-doc2md organize manifest.json --base-dir path/to/dir
 
 # 実行(実際に移動・リネームし、<base-dir>/report.md にレポートを出力)
-uvx --from git+https://github.com/yuyam0927/lms-document-to-md-parser lms-doc2md organize manifest.json --base-dir path/to/dir --apply
+uvx --from git+https://github.com/yuyam0927/lms-doc-organizer lms-doc2md organize manifest.json --base-dir path/to/dir --apply
 ```
 
-## LM Studio Skill として使う
+### 自動整理(auto-organize)
 
-[`skills/organize-documents/`](skills/organize-documents/) を
-`~/.lmstudio/skills/organize-documents/` にコピーすると、LM Studio 上で
-「`<フォルダパス>` を整理して」と指示するだけで、`convert` → タイトル・日付判定 →
-プレビュー確認 → `organize --apply` → レポート出力、までを自動実行できます。
-手順の詳細は [SKILL.md](skills/organize-documents/SKILL.md) を参照してください。
+`convert` → LM Studioのローカルモデルにタイトル(・日付)を判定させる → 一覧プレビュー →
+ユーザー確認 → `organize --apply` までを1コマンドで実行します。LLMの役割はタイトル判定
+だけに絞られており、ファイル走査・変換・確認・リネームは全てこのコマンド(Python側)が行います。
 
-**前提条件**: この SKILL.md はモデルが `run_command`(シェルコマンド実行)・
-`read_file`・`write_file` という名前のツールを使える前提で書かれています。これらは
-LM Studio 公式の filesystem MCP サーバー(通常 `run_command` は含まれません)ではなく、
-Claude の Skill 機能を LM Studio に移植した [imezx/skills](https://github.com/imezx/skills)
-系のプラグイン(`read_file`/`write_file`/`run_command` を含む一式のツールをネイティブに
-提供する LM Studio プラグイン)を想定しています。このプラグインを導入していれば、
-filesystem MCP サーバーは別途接続しなくても動作します。異なるツール名を提供する環境
-(例: filesystem MCP のみで `run_command` 相当が無い環境)では、SKILL.md 内のツール名を
-実際の環境に合わせて読み替えるか、シェル実行が可能な別のツール/MCPサーバーを追加導入
-してください。
+事前に LM Studio を起動し、モデルをロードしてローカルサーバー(既定 `http://localhost:1234/v1`)
+を有効にしておいてください。
+
+```bash
+# 対象フォルダ内のプレビューを表示し、確認後に実行
+uvx --from git+https://github.com/yuyam0927/lms-doc-organizer lms-doc2md auto-organize path/to/dir
+
+# サブフォルダも対象にする / 確認プロンプトを省略する
+uvx --from git+https://github.com/yuyam0927/lms-doc-organizer lms-doc2md auto-organize path/to/dir --recursive --yes
+
+# 使用モデル・APIエンドポイントを明示指定
+uvx --from git+https://github.com/yuyam0927/lms-doc-organizer lms-doc2md auto-organize path/to/dir --llm-model qwen2.5-7b-instruct --llm-base-url http://localhost:1234/v1
+```
+
+タイトル/日付の判定に失敗したファイル(LM Studioに接続できない、モデルが不正なJSONを返す等)は
+その1件だけスキップされ、他のファイルの処理は続行されます。
 
 ## ローカル開発
 

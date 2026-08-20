@@ -372,7 +372,7 @@ wheels = [
 ]
 
 [[package]]
-name = "lms-document-to-md-parser"
+name = "lms-doc-organizer"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [

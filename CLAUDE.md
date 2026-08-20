@@ -13,6 +13,7 @@ uv run lms-doc2md convert path/to/file.docx -o out/       # convert one file
 uv run lms-doc2md convert path/to/dir -o out/ --recursive # convert a directory tree
 uv run lms-doc2md organize manifest.json --base-dir path/to/dir           # dry run
 uv run lms-doc2md organize manifest.json --base-dir path/to/dir --apply   # actually move/rename
+uv run lms-doc2md auto-organize path/to/dir                               # convert+LLM title+organize, one command
 ```
 
 There is no lint/format/typecheck tooling configured in this repo (no ruff/mypy config). `uv sync` creates
@@ -20,9 +21,10 @@ There is no lint/format/typecheck tooling configured in this repo (no ruff/mypy 
 
 ## Architecture
 
-This is a CLI (`lms-doc2md`, entry point `lms_document_to_md_parser.cli:main`) with two independent
-subcommands that are designed to be chained together by an LLM agent (see "LM Studio Skill" below), not
-typically by a human running both by hand.
+This is a CLI (`lms-doc2md`, entry point `lms_document_to_md_parser.cli:main`) with three subcommands:
+`convert` and `organize` are independent building blocks that can be chained together (by a human, or by
+`auto-organize`, which chains them internally with an LLM used only to decide each file's title/date — see
+below).
 
 **`convert`** (`cli.py` + `parsers/`): turns `.docx`/`.pdf`/`.xlsx`/`.txt`/`.md` into Markdown.
 `parsers/__init__.py` maps file extensions to parser functions via `SUPPORTED_EXTENSIONS`; `cli.py` looks
@@ -58,13 +60,16 @@ this file:
   before each move, because the plan is normally built once for the dry-run preview and then rebuilt in a
   *separate* CLI invocation for `--apply` — the filesystem can have changed in between.
 
-**LM Studio Skill** (`skills/organize-documents/SKILL.md`): a prompt-driven runbook, not code, that an LLM
-agent inside LM Studio follows to chain `convert` → read the Markdown → decide title/date → write a
-manifest → `organize` (preview, then `--apply` after user confirmation). It assumes the agent has
-`run_command`/`read_file`/`write_file` tools from an LM Studio "skills" plugin (e.g. imezx/skills) — not
-from LM Studio's official filesystem MCP server, which typically lacks `run_command`. When editing this
-file, keep in mind the model reading it may be a small local model, so steps are meant to be followed
-literally in order rather than inferred.
+`organize` assumes something else (a human, or `auto-organize` below) already produced the manifest.
+**`auto-organize`** (`cli.py::_run_auto_organize` + `llm_client.py`) collapses `convert` → title/date
+decision → `organize` preview → confirm → `organize --apply` into a single command, with the LLM's role
+narrowed to just deciding a title/date per file — everything else (file discovery, conversion, preview, the
+y/n confirmation, and the actual move) stays in Python. `llm_client.py` talks to a locally running LM
+Studio instance's OpenAI-compatible API (`http://localhost:1234/v1` by default) via `urllib` (no new HTTP
+dependency); `suggest_title()` sends each converted file's Markdown (first 3000 chars) with a system prompt
+that mirrors the same title/date rules (short Japanese title, forbidden filename characters, only extract a
+date if explicit — never guess one) and raises `LlmError` on connection failure, non-JSON responses, or a
+missing `title` — the caller skips just that one file and continues with the rest.
 
 ## Testing conventions
 

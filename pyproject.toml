@@ -1,7 +1,7 @@
 [project]
-name = "lms-document-to-md-parser"
+name = "lms-doc-organizer"
 version = "0.1.0"
-description = "Convert docx, pdf, xlsx, txt, and md files into Markdown for LLM ingestion (LM Studio Skill backend)."
+description = "Convert docx, pdf, xlsx, txt, and md files into Markdown, and organize them with a local LLM's help."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }

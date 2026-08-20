@@ -1,7 +1,9 @@
 import json
 from pathlib import Path
 
+import lms_document_to_md_parser.cli as cli_module
 from lms_document_to_md_parser.cli import _iter_input_files, convert_file, main
+from lms_document_to_md_parser.llm_client import LlmError
 
 
 # ---- convert_file / _iter_input_files --------------------------------------
@@ -183,3 +185,95 @@ def test_main_organize_rejects_source_outside_base_dir(capsys, tmp_path):
 
     assert exit_code == 1
     assert source.exists()
+
+
+# ---- main(): auto-organize subcommand ---------------------------------------
+
+
+def _stub_suggest_title(markdown, *, base_url, model, timeout):
+    return {"title": f"タイトル_{markdown}", "date": "2026-08-19"}
+
+
+def test_main_auto_organize_reports_missing_target(capsys, tmp_path):
+    exit_code = main(["auto-organize", str(tmp_path / "missing")])
+
+    assert exit_code == 1
+    assert "not found" in capsys.readouterr().err
+
+
+def test_main_auto_organize_reports_llm_connection_failure(monkeypatch, capsys, tmp_path):
+    def fake_resolve_model(base_url, timeout):
+        raise LlmError("boom")
+
+    monkeypatch.setattr(cli_module, "resolve_model", fake_resolve_model)
+
+    exit_code = main(["auto-organize", str(tmp_path)])
+
+    assert exit_code == 1
+    assert "boom" in capsys.readouterr().err
+
+
+def test_main_auto_organize_yes_applies_without_prompt(monkeypatch, tmp_path):
+    (tmp_path / "memo.txt").write_text("hello", encoding="utf-8")
+    monkeypatch.setattr(cli_module, "suggest_title", _stub_suggest_title)
+
+    exit_code = main(["auto-organize", str(tmp_path), "--llm-model", "m", "--yes"])
+
+    assert exit_code == 0
+    assert not (tmp_path / "memo.txt").exists()
+    assert (tmp_path / "2026-08" / "20260819_タイトル_hello.txt").exists()
+    assert (tmp_path / "report.md").exists()
+
+
+def test_main_auto_organize_without_yes_requires_confirmation(monkeypatch, tmp_path):
+    (tmp_path / "memo.txt").write_text("hello", encoding="utf-8")
+    monkeypatch.setattr(cli_module, "suggest_title", _stub_suggest_title)
+    monkeypatch.setattr("builtins.input", lambda prompt="": "n")
+
+    exit_code = main(["auto-organize", str(tmp_path), "--llm-model", "m"])
+
+    assert exit_code == 0
+    assert (tmp_path / "memo.txt").exists()
+    assert not (tmp_path / "2026-08").exists()
+
+
+def test_main_auto_organize_confirmation_yes_applies(monkeypatch, tmp_path):
+    (tmp_path / "memo.txt").write_text("hello", encoding="utf-8")
+    monkeypatch.setattr(cli_module, "suggest_title", _stub_suggest_title)
+    monkeypatch.setattr("builtins.input", lambda prompt="": "y")
+
+    exit_code = main(["auto-organize", str(tmp_path), "--llm-model", "m"])
+
+    assert exit_code == 0
+    assert not (tmp_path / "memo.txt").exists()
+    assert (tmp_path / "2026-08" / "20260819_タイトル_hello.txt").exists()
+
+
+def test_main_auto_organize_skips_file_on_title_suggestion_failure(monkeypatch, capsys, tmp_path):
+    (tmp_path / "memo.txt").write_text("hello", encoding="utf-8")
+
+    def failing_suggest_title(markdown, *, base_url, model, timeout):
+        raise LlmError("model refused")
+
+    monkeypatch.setattr(cli_module, "suggest_title", failing_suggest_title)
+
+    exit_code = main(["auto-organize", str(tmp_path), "--llm-model", "m", "--yes"])
+
+    assert exit_code == 1
+    err = capsys.readouterr().err
+    assert "model refused" in err
+    assert (tmp_path / "memo.txt").exists()
+
+
+def test_main_auto_organize_uses_explicit_base_dir(monkeypatch, tmp_path):
+    src_dir = tmp_path / "src"
+    src_dir.mkdir()
+    (src_dir / "memo.txt").write_text("hello", encoding="utf-8")
+    monkeypatch.setattr(cli_module, "suggest_title", _stub_suggest_title)
+
+    exit_code = main(
+        ["auto-organize", str(src_dir), "--base-dir", str(src_dir), "--llm-model", "m", "--yes"]
+    )
+
+    assert exit_code == 0
+    assert (src_dir / "2026-08" / "20260819_タイトル_hello.txt").exists()
