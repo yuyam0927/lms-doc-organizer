@@ -3,7 +3,7 @@ import urllib.error
 
 import pytest
 
-from lms_document_to_md_parser.llm_client import LlmError, resolve_model, suggest_title
+from lms_document_to_md_parser.llm_client import LlmError, parse_date_text, resolve_model, suggest_title
 
 
 class _FakeResponse:
@@ -69,7 +69,7 @@ def test_resolve_model_wraps_invalid_json(monkeypatch):
 
 
 def test_suggest_title_parses_plain_json_response(monkeypatch):
-    payload = _chat_payload('{"title": "会議メモ", "date": "2026-08-19"}')
+    payload = _chat_payload('{"title": "会議メモ", "date_text": "2026-08-19"}')
     monkeypatch.setattr("urllib.request.urlopen", lambda req, timeout: _FakeResponse(payload))
 
     result = suggest_title("本文", base_url="http://localhost:1234/v1", model="m", timeout=10)
@@ -77,8 +77,17 @@ def test_suggest_title_parses_plain_json_response(monkeypatch):
     assert result == {"title": "会議メモ", "date": "2026-08-19"}
 
 
+def test_suggest_title_converts_wareki_date_text(monkeypatch):
+    payload = _chat_payload('{"title": "通知", "date_text": "令和8年6月8日"}')
+    monkeypatch.setattr("urllib.request.urlopen", lambda req, timeout: _FakeResponse(payload))
+
+    result = suggest_title("本文", base_url="http://localhost:1234/v1", model="m", timeout=10)
+
+    assert result == {"title": "通知", "date": "2026-06-08"}
+
+
 def test_suggest_title_strips_code_fence(monkeypatch):
-    payload = _chat_payload('```json\n{"title": "資料", "date": null}\n```')
+    payload = _chat_payload('```json\n{"title": "資料", "date_text": null}\n```')
     monkeypatch.setattr("urllib.request.urlopen", lambda req, timeout: _FakeResponse(payload))
 
     result = suggest_title("本文", base_url="http://localhost:1234/v1", model="m", timeout=10)
@@ -96,7 +105,7 @@ def test_suggest_title_omits_date_when_absent(monkeypatch):
 
 
 def test_suggest_title_raises_on_missing_title(monkeypatch):
-    payload = _chat_payload('{"date": "2026-08-19"}')
+    payload = _chat_payload('{"date_text": "2026-08-19"}')
     monkeypatch.setattr("urllib.request.urlopen", lambda req, timeout: _FakeResponse(payload))
 
     with pytest.raises(LlmError):
@@ -126,6 +135,34 @@ def test_suggest_title_wraps_connection_errors(monkeypatch):
 
     with pytest.raises(LlmError):
         suggest_title("本文", base_url="http://localhost:1234/v1", model="m", timeout=10)
+
+
+# ---- parse_date_text --------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        ("令和8年6月8日", "2026-06-08"),
+        ("令和元年5月1日", "2019-05-01"),
+        ("平成31年4月30日", "2019-04-30"),
+        ("昭和64年1月7日", "1989-01-07"),
+        ("2026-06-08", "2026-06-08"),
+        ("2026/06/08", "2026-06-08"),
+        ("2026年6月8日", "2026-06-08"),
+        ("２０２６年６月８日", "2026-06-08"),
+    ],
+)
+def test_parse_date_text_converts_known_formats(text, expected):
+    assert parse_date_text(text) == expected
+
+
+@pytest.mark.parametrize(
+    "text",
+    [None, "", "特に記載なし", "令和8年", "令和8年6月"],
+)
+def test_parse_date_text_returns_none_for_unparseable_input(text):
+    assert parse_date_text(text) is None
 
 
 def test_suggest_title_truncates_long_content(monkeypatch):
