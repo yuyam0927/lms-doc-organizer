@@ -176,4 +176,4 @@ def test_suggest_title_truncates_long_content(monkeypatch):
 
     suggest_title("a" * 5000, base_url="http://localhost:1234/v1", model="m", timeout=10)
 
-    assert len(captured["body"]["messages"][1]["content"]) == 3000
+    assert len(captured["body"]["messages"][1]["content"]) == 1500

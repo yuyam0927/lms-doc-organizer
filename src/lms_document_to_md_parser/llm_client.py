@@ -6,7 +6,7 @@ import urllib.request
 from datetime import date as _date
 
 DEFAULT_BASE_URL = "http://localhost:1234/v1"
-_MAX_CONTENT_CHARS = 3000
+_MAX_CONTENT_CHARS = 1500
 
 _SYSTEM_PROMPT = (
     "あなたはドキュメント整理アシスタントです。渡されたMarkdown文書を読み、"
