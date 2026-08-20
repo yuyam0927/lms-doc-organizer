@@ -66,10 +66,14 @@ decision → `organize` preview → confirm → `organize --apply` into a single
 narrowed to just deciding a title/date per file — everything else (file discovery, conversion, preview, the
 y/n confirmation, and the actual move) stays in Python. `llm_client.py` talks to a locally running LM
 Studio instance's OpenAI-compatible API (`http://localhost:1234/v1` by default) via `urllib` (no new HTTP
-dependency); `suggest_title()` sends each converted file's Markdown (first 3000 chars) with a system prompt
+dependency); `suggest_title()` sends each converted file's Markdown (first 1500 chars) with a system prompt
 that mirrors the same title/date rules (short Japanese title, forbidden filename characters, only extract a
 date if explicit — never guess one) and raises `LlmError` on connection failure, non-JSON responses, or a
-missing `title` — the caller skips just that one file and continues with the rest.
+missing `title` — the caller skips just that one file and continues with the rest. The LLM is deliberately
+*not* trusted to convert the date itself: it returns the date exactly as written in the document
+(`date_text`, e.g. `"令和8年6月8日"`), and `parse_date_text()` does the actual conversion to `YYYY-MM-DD` in
+Python (covering 令和/平成/昭和/大正/明治 eras, `元年`, and common Gregorian formats) — local models were
+unreliable at the wareki→Gregorian year arithmetic when asked to do it themselves.
 
 ## Testing conventions
 
